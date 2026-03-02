@@ -1,6 +1,6 @@
 # Riposte
 
-A Chrome extension that tracks your "reply guy" activity on X (formerly Twitter). Monitor your replies, see which accounts you engage with most, and build streaks — all without needing an X API key.
+A Chrome extension that tracks your "reply guy" activity on X (Twitter). Monitor your replies, see which accounts you engage with most, and build streaks.
 
 ## Features
 
