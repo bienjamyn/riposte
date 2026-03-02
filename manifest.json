@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "Riposte",
+  "description": "Track your reply game on X. Analytics, streaks, and AI-powered reply suggestions.",
+  "version": "0.1.0",
+  "icons": {
+    "16": "public/icons/icon16.png",
+    "48": "public/icons/icon48.png",
+    "128": "public/icons/icon128.png"
+  },
+  "permissions": ["storage", "sidePanel"],
+  "host_permissions": ["*://x.com/*"],
+  "background": {
+    "service_worker": "src/background/service-worker.ts",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://x.com/*"],
+      "js": ["src/content/page-intercept.ts"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["*://x.com/*"],
+      "js": ["src/content/observer.ts"],
+      "run_at": "document_start"
+    }
+  ],
+  "side_panel": {
+    "default_path": "src/sidebar/index.html"
+  },
+  "action": {
+    "default_title": "Riposte"
+  }}
