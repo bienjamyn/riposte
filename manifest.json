@@ -8,7 +8,7 @@
     "48": "public/icons/icon48.png",
     "128": "public/icons/icon128.png"
   },
-  "permissions": ["storage", "sidePanel"],
+  "permissions": ["storage", "sidePanel", "tabs"],
   "host_permissions": ["*://x.com/*"],
   "background": {
     "service_worker": "src/background/service-worker.ts",

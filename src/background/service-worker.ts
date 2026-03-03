@@ -17,6 +17,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
 })
 
+// Auto-reload x.com tabs when extension is installed/updated
+chrome.runtime.onInstalled.addListener(async () => {
+  const tabs = await chrome.tabs.query({ url: '*://x.com/*' })
+  for (const tab of tabs) {
+    if (tab.id) chrome.tabs.reload(tab.id)
+  }
+})
+
 // Open side panel when extension icon is clicked
 chrome.action.onClicked.addListener((tab) => {
   if (tab.id) {

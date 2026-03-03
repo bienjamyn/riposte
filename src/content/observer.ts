@@ -16,10 +16,14 @@ window.addEventListener('message', (event) => {
 
   console.log('[Riposte] Reply detected!', data)
 
-  chrome.runtime.sendMessage({
-    type: 'REPLY_DETECTED',
-    data,
-  })
+  try {
+    chrome.runtime.sendMessage({
+      type: 'REPLY_DETECTED',
+      data,
+    })
+  } catch {
+    // Extension context invalidated — user reloaded extension but hasn't refreshed this tab
+  }
 })
 
 console.log('[Riposte] Content script loaded — monitoring replies on x.com')
