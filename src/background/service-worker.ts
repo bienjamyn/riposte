@@ -16,14 +16,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true
   }
 
-  if (message.type === 'OPEN_SIDE_PANEL') {
-    const tabId = sender.tab?.id
-    if (tabId) {
-      chrome.sidePanel.open({ tabId })
-    }
-    sendResponse({ ok: true })
-    return false
-  }
 })
 
 // Disable action by default — only enable on x.com tabs
@@ -40,8 +32,16 @@ function isXUrl(url: string | undefined): boolean {
 
 function updateIconForTab(tabId: number, url: string | undefined) {
   if (isXUrl(url)) {
+    chrome.action.setIcon({
+      tabId,
+      path: { '16': 'public/icons/icon16.png', '48': 'public/icons/icon48.png' },
+    })
     chrome.action.enable(tabId)
   } else {
+    chrome.action.setIcon({
+      tabId,
+      path: { '16': 'public/icons/icon16-grey.png', '48': 'public/icons/icon48-grey.png' },
+    })
     chrome.action.disable(tabId)
   }
 }
@@ -56,23 +56,17 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
   updateIconForTab(activeInfo.tabId, tab.url)
 })
 
-// Auto-reload x.com tabs when extension is installed/updated
+// Set correct icon state for all tabs and reload x.com tabs on install/update
 chrome.runtime.onInstalled.addListener(async () => {
-  const tabs = await chrome.tabs.query({ url: '*://x.com/*' })
+  const tabs = await chrome.tabs.query({})
   for (const tab of tabs) {
     if (tab.id) {
-      chrome.action.enable(tab.id)
-      chrome.tabs.reload(tab.id)
+      updateIconForTab(tab.id, tab.url)
+      if (isXUrl(tab.url)) chrome.tabs.reload(tab.id)
     }
   }
 })
 
-// Open side panel when extension icon is clicked
-chrome.action.onClicked.addListener((tab) => {
-  if (tab.id) {
-    chrome.sidePanel.open({ tabId: tab.id })
-  }
-})
 
 interface ReplyRecord {
   id: string

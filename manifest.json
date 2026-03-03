@@ -8,7 +8,7 @@
     "48": "public/icons/icon48.png",
     "128": "public/icons/icon128.png"
   },
-  "permissions": ["storage", "sidePanel", "tabs", "activeTab"],
+  "permissions": ["storage", "tabs", "activeTab"],
   "host_permissions": ["*://x.com/*"],
   "background": {
     "service_worker": "src/background/service-worker.ts",
@@ -27,9 +27,15 @@
       "run_at": "document_start"
     }
   ],
-  "side_panel": {
-    "default_path": "src/sidebar/index.html"
-  },
   "action": {
-    "default_title": "Riposte"
-  }}
+    "default_title": "Riposte",
+    "default_icon": {
+      "16": "public/icons/icon16-grey.png",
+      "48": "public/icons/icon48-grey.png"
+    }
+  },
+  "web_accessible_resources": [{
+    "resources": ["src/sidebar/index.html"],
+    "matches": ["*://x.com/*"]
+  }]
+}
