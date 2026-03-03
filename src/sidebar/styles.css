@@ -34,6 +34,59 @@ header h1 {
   margin-top: 2px;
 }
 
+/* Progress bar */
+.progress-section {
+  margin-bottom: 20px;
+}
+
+.progress-bar-track {
+  background: #16181c;
+  border: 1px solid #2f3336;
+  border-radius: 10px;
+  height: 22px;
+  overflow: hidden;
+  position: relative;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 10px;
+  background: linear-gradient(90deg, #004d25, #00c853, #00e676);
+  box-shadow: 0 0 8px rgba(0, 230, 118, 0.4);
+  transition: width 0.4s ease;
+  position: relative;
+}
+
+.progress-bar-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 50%;
+  background: linear-gradient(180deg, rgba(255,255,255,0.15), transparent);
+  border-radius: 10px 10px 0 0;
+}
+
+.progress-bar-track.full .progress-bar-fill {
+  background: linear-gradient(90deg, #00c853, #00e676, #69f0ae);
+  box-shadow: 0 0 14px rgba(0, 230, 118, 0.6);
+  animation: pulse-glow 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 10px rgba(0, 230, 118, 0.4); }
+  50% { box-shadow: 0 0 20px rgba(0, 230, 118, 0.7); }
+}
+
+.progress-label {
+  font-size: 12px;
+  color: #71767b;
+  margin-top: 6px;
+  text-align: center;
+}
+
+/* Stats grid */
 .stats-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -54,7 +107,7 @@ header h1 {
 .stat-value {
   font-size: 28px;
   font-weight: 700;
-  color: #1d9bf0;
+  color: #00e676;
 }
 
 .stat-label {
@@ -65,6 +118,7 @@ header h1 {
   letter-spacing: 0.5px;
 }
 
+/* Sections */
 section {
   margin-bottom: 24px;
 }
@@ -76,11 +130,12 @@ section h2 {
   color: #e7e9ea;
 }
 
-.leaderboard {
+/* Recent replies */
+.recent-replies {
   list-style: none;
 }
 
-.leaderboard li {
+.recent-replies li {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -88,11 +143,11 @@ section h2 {
   border-bottom: 1px solid #2f3336;
 }
 
-.leaderboard li:last-child {
+.recent-replies li:last-child {
   border-bottom: none;
 }
 
-.leaderboard a {
+.recent-replies a {
   text-decoration: none;
   color: inherit;
   display: flex;
@@ -110,12 +165,11 @@ section h2 {
   color: #71767b;
 }
 
-.reply-count {
-  font-size: 18px;
-  font-weight: 700;
-  color: #1d9bf0;
-  min-width: 30px;
-  text-align: right;
+.reply-time {
+  font-size: 13px;
+  color: #71767b;
+  white-space: nowrap;
+  margin-left: 12px;
 }
 
 .empty {
@@ -129,4 +183,57 @@ section h2 {
   color: #71767b;
   text-align: center;
   padding: 40px 0;
+}
+
+/* Goal editor */
+.goal-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.goal-btn {
+  background: none;
+  border: none;
+  color: #1d9bf0;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.goal-btn:hover {
+  text-decoration: underline;
+}
+
+.goal-input {
+  width: 50px;
+  background: #16181c;
+  border: 1px solid #2f3336;
+  border-radius: 4px;
+  color: #e7e9ea;
+  font-size: 12px;
+  padding: 3px 6px;
+  text-align: center;
+}
+
+.goal-input:focus {
+  outline: none;
+  border-color: #1d9bf0;
+}
+
+.goal-scope-btn {
+  background: #16181c;
+  border: 1px solid #2f3336;
+  border-radius: 12px;
+  color: #e7e9ea;
+  font-size: 11px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+
+.goal-scope-btn:hover {
+  background: #1d9bf0;
+  border-color: #1d9bf0;
 }

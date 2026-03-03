@@ -1,6 +1,6 @@
 // Riposte Service Worker — handles storage and badge updates
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'REPLY_DETECTED') {
     handleReplyDetected(message.data).then(() => sendResponse({ ok: true }))
     return true // keep channel open for async response
@@ -15,13 +15,55 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     getReplies().then((replies) => sendResponse(replies))
     return true
   }
+
+  if (message.type === 'OPEN_SIDE_PANEL') {
+    const tabId = sender.tab?.id
+    if (tabId) {
+      chrome.sidePanel.open({ tabId })
+    }
+    sendResponse({ ok: true })
+    return false
+  }
+})
+
+// Disable action by default — only enable on x.com tabs
+chrome.action.disable()
+
+function isXUrl(url: string | undefined): boolean {
+  if (!url) return false
+  try {
+    return new URL(url).hostname === 'x.com'
+  } catch {
+    return false
+  }
+}
+
+function updateIconForTab(tabId: number, url: string | undefined) {
+  if (isXUrl(url)) {
+    chrome.action.enable(tabId)
+  } else {
+    chrome.action.disable(tabId)
+  }
+}
+
+// Enable/disable icon as tabs change
+chrome.tabs.onUpdated.addListener((tabId, _changeInfo, tab) => {
+  updateIconForTab(tabId, tab.url)
+})
+
+chrome.tabs.onActivated.addListener(async (activeInfo) => {
+  const tab = await chrome.tabs.get(activeInfo.tabId)
+  updateIconForTab(activeInfo.tabId, tab.url)
 })
 
 // Auto-reload x.com tabs when extension is installed/updated
 chrome.runtime.onInstalled.addListener(async () => {
   const tabs = await chrome.tabs.query({ url: '*://x.com/*' })
   for (const tab of tabs) {
-    if (tab.id) chrome.tabs.reload(tab.id)
+    if (tab.id) {
+      chrome.action.enable(tab.id)
+      chrome.tabs.reload(tab.id)
+    }
   }
 })
 
@@ -62,7 +104,7 @@ async function handleReplyDetected(data: Omit<ReplyRecord, 'id'>) {
   }).length
 
   chrome.action.setBadgeText({ text: todayCount.toString() })
-  chrome.action.setBadgeBackgroundColor({ color: '#1D9BF0' })
+  chrome.action.setBadgeBackgroundColor({ color: '#00C853' })
 
   console.log('[Riposte] Reply saved:', record)
 }

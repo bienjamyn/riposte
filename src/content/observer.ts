@@ -27,3 +27,59 @@ window.addEventListener('message', (event) => {
 })
 
 console.log('[Riposte] Content script loaded — monitoring replies on x.com')
+
+// Inject floating Riposte button into x.com page
+function injectFloatingButton() {
+  if (document.getElementById('riposte-floating-btn')) return
+
+  const btn = document.createElement('button')
+  btn.id = 'riposte-floating-btn'
+  btn.title = 'Open Riposte'
+
+  const iconUrl = chrome.runtime.getURL('public/icons/icon48.png')
+  btn.innerHTML = `<img src="${iconUrl}" width="24" height="24" alt="Riposte" style="border-radius: 50%;" />`
+
+  Object.assign(btn.style, {
+    position: 'fixed',
+    top: '12px',
+    right: '16px',
+    zIndex: '9999',
+    width: '40px',
+    height: '40px',
+    borderRadius: '50%',
+    border: '1px solid #2f3336',
+    background: '#16181c',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '0',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+    transition: 'background 0.2s, transform 0.15s',
+  })
+
+  btn.addEventListener('mouseenter', () => {
+    btn.style.background = '#1d9bf0'
+    btn.style.transform = 'scale(1.1)'
+  })
+  btn.addEventListener('mouseleave', () => {
+    btn.style.background = '#16181c'
+    btn.style.transform = 'scale(1)'
+  })
+
+  btn.addEventListener('click', () => {
+    try {
+      chrome.runtime.sendMessage({ type: 'OPEN_SIDE_PANEL' })
+    } catch {
+      // Extension context invalidated
+    }
+  })
+
+  document.body.appendChild(btn)
+}
+
+if (document.body) {
+  injectFloatingButton()
+} else {
+  document.addEventListener('DOMContentLoaded', injectFloatingButton)
+}
