@@ -49,4 +49,4 @@ Then load it in Chrome:
 
 ## License
 
-MIT
+[MIT](LICENSE)
