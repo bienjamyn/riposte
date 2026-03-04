@@ -34,13 +34,13 @@ function updateIconForTab(tabId: number, url: string | undefined) {
   if (isXUrl(url)) {
     chrome.action.setIcon({
       tabId,
-      path: { '16': 'public/icons/icon16.png', '48': 'public/icons/icon48.png' },
+      path: { '16': 'public/icons/icon16.png', '32': 'public/icons/icon32.png', '48': 'public/icons/icon48.png' },
     })
     chrome.action.enable(tabId)
   } else {
     chrome.action.setIcon({
       tabId,
-      path: { '16': 'public/icons/icon16-grey.png', '48': 'public/icons/icon48-grey.png' },
+      path: { '16': 'public/icons/icon16-grey.png', '32': 'public/icons/icon32-grey.png', '48': 'public/icons/icon48-grey.png' },
     })
     chrome.action.disable(tabId)
   }

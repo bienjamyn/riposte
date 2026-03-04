@@ -22,6 +22,10 @@ function getTodayString(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+function getDateString(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
 function timeAgo(timestamp: number): string {
   const seconds = Math.floor((Date.now() - timestamp) / 1000)
   if (seconds < 60) return 'just now'
@@ -34,12 +38,170 @@ function timeAgo(timestamp: number): string {
   return `${days}d ago`
 }
 
+function formatShortDate(dateStr: string): string {
+  const d = new Date(dateStr + 'T12:00:00')
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+function getDailyCounts(replies: ReplyRecord[], from: string, to: string): { date: string; count: number }[] {
+  // Count replies per day
+  const counts: Record<string, number> = {}
+  for (const r of replies) {
+    const d = new Date(r.timestamp)
+    const key = getDateString(d)
+    counts[key] = (counts[key] || 0) + 1
+  }
+
+  // Fill in every day in the range
+  const result: { date: string; count: number }[] = []
+  const current = new Date(from + 'T12:00:00')
+  const end = new Date(to + 'T12:00:00')
+  while (current <= end) {
+    const key = getDateString(current)
+    result.push({ date: key, count: counts[key] || 0 })
+    current.setDate(current.getDate() + 1)
+  }
+  return result
+}
+
+function LineChart({ data, maxCount }: { data: { date: string; count: number }[]; maxCount: number }) {
+  const [hovered, setHovered] = useState<number | null>(null)
+
+  if (data.length === 0) return <p className="empty">No data for this range.</p>
+
+  const width = 320
+  const height = 160
+  const padL = 12
+  const padR = 12
+  const padT = 28
+  const padB = 28
+  const plotW = width - padL - padR
+  const plotH = height - padT - padB
+
+  const points = data.map((d, i) => ({
+    x: padL + (data.length > 1 ? (i / (data.length - 1)) * plotW : plotW / 2),
+    y: padT + plotH - (maxCount > 0 ? (d.count / maxCount) * plotH : 0),
+    ...d,
+  }))
+
+  const polyline = points.map((p) => `${p.x},${p.y}`).join(' ')
+
+  // X-axis labels: show first, middle, last
+  const labelIndices: number[] = []
+  if (data.length >= 1) labelIndices.push(0)
+  if (data.length >= 3) labelIndices.push(Math.floor(data.length / 2))
+  if (data.length >= 2) labelIndices.push(data.length - 1)
+
+  // Y-axis grid: 0 and max
+  const gridYValues = maxCount > 0 ? [0, Math.ceil(maxCount / 2), maxCount] : [0]
+
+  const hp = hovered !== null ? points[hovered] : null
+
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} className="line-chart">
+      {/* Grid lines */}
+      {gridYValues.map((v) => {
+        const y = padT + plotH - (maxCount > 0 ? (v / maxCount) * plotH : 0)
+        return (
+          <g key={v}>
+            <line x1={padL} y1={y} x2={width - padR} y2={y} stroke="#2f3336" strokeWidth="1" />
+            <text x={padL - 2} y={y - 4} fill="#71767b" fontSize="9" textAnchor="end">
+              {v}
+            </text>
+          </g>
+        )
+      })}
+      {/* Area fill */}
+      <polygon
+        points={`${points[0].x},${padT + plotH} ${polyline} ${points[points.length - 1].x},${padT + plotH}`}
+        fill="url(#areaGradient)"
+      />
+      <defs>
+        <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#00e676" stopOpacity="0.2" />
+          <stop offset="100%" stopColor="#00e676" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      {/* Line */}
+      <polyline points={polyline} fill="none" stroke="#00e676" strokeWidth="2" strokeLinejoin="round" />
+      {/* Vertical hover line */}
+      {hp && (
+        <line x1={hp.x} y1={padT} x2={hp.x} y2={padT + plotH} stroke="#71767b" strokeWidth="1" strokeDasharray="3,3" />
+      )}
+      {/* Data points */}
+      {points.map((p, i) => (
+        <g
+          key={p.date}
+          onMouseEnter={() => setHovered(i)}
+          onMouseLeave={() => setHovered(null)}
+        >
+          <circle cx={p.x} cy={p.y} r={14} fill="transparent" />
+          <circle
+            cx={p.x}
+            cy={p.y}
+            r={hovered === i ? 5 : 3}
+            fill={hovered === i ? '#fff' : '#00e676'}
+            stroke="#00e676"
+            strokeWidth="2"
+          />
+        </g>
+      ))}
+      {/* Tooltip */}
+      {hp && (
+        <g>
+          <rect
+            x={Math.min(hp.x - 40, width - padR - 80)}
+            y={hp.y - 36}
+            width="80"
+            height="24"
+            rx="4"
+            fill="#1a1a2e"
+            stroke="#2f3336"
+            strokeWidth="1"
+          />
+          <text
+            x={Math.min(hp.x, width - padR - 40)}
+            y={hp.y - 20}
+            fill="#e7e9ea"
+            fontSize="11"
+            textAnchor="middle"
+            fontWeight="600"
+          >
+            {formatShortDate(hp.date)}: {hp.count}
+          </text>
+        </g>
+      )}
+      {/* X-axis labels */}
+      {labelIndices.map((i) => (
+        <text
+          key={points[i].date}
+          x={points[i].x}
+          y={height - 6}
+          fill="#71767b"
+          fontSize="10"
+          textAnchor="middle"
+        >
+          {formatShortDate(points[i].date)}
+        </text>
+      ))}
+    </svg>
+  )
+}
+
 function App() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [replies, setReplies] = useState<ReplyRecord[]>([])
+  const [allReplies, setAllReplies] = useState<ReplyRecord[]>([])
   const [dailyGoal, setDailyGoal] = useState(DEFAULT_GOAL)
   const [isEditingGoal, setIsEditingGoal] = useState(false)
   const [goalInput, setGoalInput] = useState('')
+  const [tab, setTab] = useState<'replies' | 'overview'>('replies')
+  const [dateFrom, setDateFrom] = useState(() => {
+    const d = new Date()
+    d.setDate(d.getDate() - 7)
+    return getDateString(d)
+  })
+  const [dateTo, setDateTo] = useState(() => getDateString(new Date()))
 
   const loadGoal = () => {
     chrome.storage.local.get(['dailyGoalWeek', 'dailyGoalToday'], (result) => {
@@ -71,6 +233,7 @@ function App() {
     })
     chrome.runtime.sendMessage({ type: 'GET_REPLIES' }, (response) => {
       if (response) {
+        setAllReplies(response)
         const now = new Date()
         const todayReplies = response.filter((r: ReplyRecord) => {
           const d = new Date(r.timestamp)
@@ -99,11 +262,14 @@ function App() {
   const progress = stats ? Math.min(stats.today / dailyGoal, 1) : 0
   const isFull = stats ? stats.today >= dailyGoal : false
 
+  const dailyCounts = getDailyCounts(allReplies, dateFrom, dateTo)
+  const maxCount = Math.max(...dailyCounts.map((d) => d.count), 1)
+
   return (
     <div className="app">
       <header>
         <h1>Riposte</h1>
-        <p className="subtitle">Your reply game tracker</p>
+        <p className="subtitle">Track your replies, build relationships, and grow on X.</p>
       </header>
 
       {stats ? (
@@ -170,32 +336,72 @@ function App() {
             </div>
           </div>
 
-          <section>
-            <h2>Today's Replies</h2>
-            {replies.length === 0 ? (
-              <p className="empty">No replies today yet. Start replying!</p>
-            ) : (
-              <ul className="recent-replies">
-                {replies.map((reply) => (
-                  <li key={reply.id}>
-                    <a
-                      href={reply.repliedToTweetUrl || `https://x.com/${reply.repliedToUsername}`}
-                      target="_blank"
-                      rel="noopener"
-                    >
-                      <span className="account-name">
-                        {reply.repliedToDisplayName}
-                      </span>
-                      <span className="account-handle">
-                        @{reply.repliedToUsername}
-                      </span>
-                    </a>
-                    <span className="reply-time">{timeAgo(reply.timestamp)}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
+          <div className="tab-bar">
+            <button
+              className={`tab-btn${tab === 'replies' ? ' active' : ''}`}
+              onClick={() => setTab('replies')}
+            >
+              Today's Replies
+            </button>
+            <button
+              className={`tab-btn${tab === 'overview' ? ' active' : ''}`}
+              onClick={() => setTab('overview')}
+            >
+              Overview
+            </button>
+          </div>
+
+          {tab === 'replies' && (
+            <section>
+              {replies.length === 0 ? (
+                <p className="empty">No replies today yet. Start replying!</p>
+              ) : (
+                <ul className="recent-replies">
+                  {replies.map((reply) => (
+                    <li key={reply.id}>
+                      <a
+                        href={reply.repliedToTweetUrl || `https://x.com/${reply.repliedToUsername}`}
+                        target="_blank"
+                        rel="noopener"
+                      >
+                        <span className="account-name">
+                          {reply.repliedToDisplayName}
+                        </span>
+                        <span className="account-handle">
+                          @{reply.repliedToUsername}
+                        </span>
+                      </a>
+                      <span className="reply-time">{timeAgo(reply.timestamp)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          )}
+
+          {tab === 'overview' && (
+            <section>
+              <div className="date-filter">
+                <label>
+                  From
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                  />
+                </label>
+                <label>
+                  To
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                  />
+                </label>
+              </div>
+              <LineChart data={dailyCounts} maxCount={maxCount} />
+            </section>
+          )}
         </>
       ) : (
         <p className="loading">Loading stats...</p>

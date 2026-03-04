@@ -50,22 +50,23 @@ function createSidebar(): HTMLDivElement {
     overflow: 'hidden',
   })
 
-  // Close button
+  // Close button — right arrows to suggest "slide away"
   const closeBtn = document.createElement('button')
   closeBtn.id = 'riposte-sidebar-close'
-  closeBtn.innerHTML = '&#x2715;' // ✕
+  closeBtn.innerHTML = '&rsaquo;&rsaquo;&rsaquo;'
   Object.assign(closeBtn.style, {
     position: 'absolute',
     top: '10px',
     right: '10px',
     zIndex: '10001',
-    width: '28px',
     height: '28px',
-    borderRadius: '50%',
+    padding: '0 8px',
+    borderRadius: '14px',
     border: 'none',
     background: 'rgba(255,255,255,0.08)',
     color: '#e7e9ea',
-    fontSize: '14px',
+    fontSize: '16px',
+    letterSpacing: '-2px',
     cursor: 'pointer',
     display: 'flex',
     alignItems: 'center',
@@ -87,7 +88,7 @@ function createSidebar(): HTMLDivElement {
     width: '100%',
     height: '100%',
     border: 'none',
-    background: '#000',
+    background: '#0C2026',
   })
 
   container.appendChild(closeBtn)
@@ -105,6 +106,10 @@ function toggleSidebar(forceState?: boolean) {
 
   sidebarVisible = forceState !== undefined ? forceState : !sidebarVisible
   container.style.transform = sidebarVisible ? 'translateX(0)' : 'translateX(100%)'
+
+  // Hide floating button when sidebar is open so it doesn't overlap
+  const btn = document.getElementById('riposte-floating-btn')
+  if (btn) btn.style.display = sidebarVisible ? 'none' : 'flex'
 }
 
 // Inject floating Riposte button into x.com page
@@ -115,8 +120,8 @@ function injectFloatingButton() {
   btn.id = 'riposte-floating-btn'
   btn.title = 'Open Riposte'
 
-  const iconUrl = chrome.runtime.getURL('public/icons/icon48.png')
-  btn.innerHTML = `<img src="${iconUrl}" width="24" height="24" alt="Riposte" style="border-radius: 50%;" />`
+  const iconUrl = chrome.runtime.getURL('public/icons/icon128.png')
+  btn.innerHTML = `<img src="${iconUrl}" width="32" height="32" alt="Riposte" />`
 
   Object.assign(btn.style, {
     position: 'fixed',
@@ -125,24 +130,21 @@ function injectFloatingButton() {
     zIndex: '10002',
     width: '40px',
     height: '40px',
-    borderRadius: '50%',
-    border: '1px solid #2f3336',
-    background: '#16181c',
+    borderRadius: '8px',
+    border: 'none',
+    background: 'transparent',
     cursor: 'pointer',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     padding: '0',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
-    transition: 'background 0.2s, transform 0.15s',
+    transition: 'transform 0.15s',
   })
 
   btn.addEventListener('mouseenter', () => {
-    btn.style.background = '#1d9bf0'
     btn.style.transform = 'scale(1.1)'
   })
   btn.addEventListener('mouseleave', () => {
-    btn.style.background = '#16181c'
     btn.style.transform = 'scale(1)'
   })
 

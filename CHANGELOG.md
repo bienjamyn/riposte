@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - In-page sidebar injected into x.com (replaces Chrome Side Panel) with slide-in/out animation
 - Grey icon variants for non-x.com tabs (visually distinct from the active blue icon)
 - Close button on the in-page sidebar
+- Interactive SVG line chart in the Overview tab with hover tooltips showing date and reply count
+- Popup page for the extension toolbar icon
 
 ### Changed
 
@@ -23,6 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Floating button toggles the in-page sidebar instead of opening Chrome's Side Panel
 - Extension toolbar icon no longer opens a side panel on click
 - Icon swaps between blue (x.com) and grey (other sites) using `setIcon` instead of relying on `enable`/`disable` opacity
+- Floating button now uses high-resolution icon (128px source) for crisp rendering on Retina/high-DPI displays
+- Updated sidebar subtitle to "Track your replies, build relationships, and grow on X."
+- Replaced horizontal bar chart with interactive line chart featuring area fill, grid lines, and hover tooltips
 
 ### Removed
 

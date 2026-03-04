@@ -5,6 +5,7 @@
   "version": "0.1.1",
   "icons": {
     "16": "public/icons/icon16.png",
+    "32": "public/icons/icon32.png",
     "48": "public/icons/icon48.png",
     "128": "public/icons/icon128.png"
   },
@@ -29,13 +30,15 @@
   ],
   "action": {
     "default_title": "Riposte",
+    "default_popup": "src/popup/popup.html",
     "default_icon": {
       "16": "public/icons/icon16-grey.png",
+      "32": "public/icons/icon32-grey.png",
       "48": "public/icons/icon48-grey.png"
     }
   },
   "web_accessible_resources": [{
-    "resources": ["src/sidebar/index.html"],
+    "resources": ["src/sidebar/index.html", "public/icons/icon128.png"],
     "matches": ["*://x.com/*"]
   }]
 }
