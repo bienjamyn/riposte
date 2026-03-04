@@ -2,6 +2,8 @@
 
 A Chrome extension that tracks your "reply guy" activity on X (Twitter). Monitor your replies, see which accounts you engage with most, and build streaks.
 
+![Riposte](riposte%20250x250.png)
+
 ## Features
 
 - **Reply Tracking** — Automatically detects when you reply to tweets and logs who you replied to, when, and where
