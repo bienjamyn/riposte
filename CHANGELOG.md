@@ -55,7 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - Chrome Side Panel API dependency (`sidePanel` permission and `side_panel` manifest config)
 
-## [0.1.0] - 2026-03-03
+## [0.1.0] - 2026-03-02
 
 ### Added
 
