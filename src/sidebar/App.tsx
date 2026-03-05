@@ -5,6 +5,7 @@ interface Stats {
   today: number
   last7Days: number
   streak: number
+  leaderboard: { username: string; displayName: string; count: number }[]
 }
 
 interface ReplyRecord {
@@ -15,7 +16,25 @@ interface ReplyRecord {
   timestamp: number
 }
 
+interface FeedSuggestion {
+  authorUsername: string
+  authorDisplayName: string
+  tweetText: string
+  tweetUrl: string
+  matchReason: string
+  score: number
+  hasReplied: boolean
+}
+
+interface InterestProfile {
+  topAccounts: { username: string; score: number }[]
+  topKeywords: { word: string; score: number }[]
+  calibratedAt: number
+  replyCount: number
+}
+
 const DEFAULT_GOAL = 10
+const CALIBRATION_THRESHOLD = 20
 
 function getTodayString(): string {
   const d = new Date()
@@ -195,7 +214,9 @@ function App() {
   const [dailyGoal, setDailyGoal] = useState(DEFAULT_GOAL)
   const [isEditingGoal, setIsEditingGoal] = useState(false)
   const [goalInput, setGoalInput] = useState('')
-  const [tab, setTab] = useState<'replies' | 'overview'>('replies')
+  const [tab, setTab] = useState<'replies' | 'analytics' | 'suggestions'>('replies')
+  const [suggestions, setSuggestions] = useState<FeedSuggestion[]>([])
+  const [interestProfile, setInterestProfile] = useState<InterestProfile | null>(null)
   const [dateFrom, setDateFrom] = useState(() => {
     const d = new Date()
     d.setDate(d.getDate() - 7)
@@ -246,6 +267,12 @@ function App() {
         setReplies(todayReplies)
       }
     })
+    chrome.runtime.sendMessage({ type: 'GET_SUGGESTIONS' }, (response) => {
+      if (response) setSuggestions(response)
+    })
+    chrome.runtime.sendMessage({ type: 'GET_INTEREST_PROFILE' }, (response) => {
+      if (response) setInterestProfile(response)
+    })
   }
 
   useEffect(() => {
@@ -254,6 +281,8 @@ function App() {
     const listener = (changes: { [key: string]: chrome.storage.StorageChange }) => {
       if (changes.replies) loadData()
       if (changes.dailyGoalWeek || changes.dailyGoalToday) loadGoal()
+      if (changes.feedSuggestions?.newValue) setSuggestions(changes.feedSuggestions.newValue)
+      if (changes.interestProfile?.newValue) setInterestProfile(changes.interestProfile.newValue)
     }
     chrome.storage.onChanged.addListener(listener)
     return () => chrome.storage.onChanged.removeListener(listener)
@@ -264,6 +293,24 @@ function App() {
 
   const dailyCounts = getDailyCounts(allReplies, dateFrom, dateTo)
   const maxCount = Math.max(...dailyCounts.map((d) => d.count), 1)
+
+  // Analytics computations
+  const uniqueAccounts = new Set(allReplies.map((r) => r.repliedToUsername)).size
+  const daysActive = new Set(allReplies.map((r) => getDateString(new Date(r.timestamp)))).size
+  const avgPerDay = daysActive > 0 ? (allReplies.length / daysActive).toFixed(1) : '0'
+
+  const peakHour = (() => {
+    if (allReplies.length === 0) return '--'
+    const hourCounts = new Array(24).fill(0)
+    for (const r of allReplies) hourCounts[new Date(r.timestamp).getHours()]++
+    const maxH = hourCounts.indexOf(Math.max(...hourCounts))
+    const fmt = (h: number) => {
+      const suffix = h >= 12 ? 'PM' : 'AM'
+      const hr = h % 12 || 12
+      return `${hr}${suffix}`
+    }
+    return `${fmt(maxH)}-${fmt((maxH + 1) % 24)}`
+  })()
 
   return (
     <div className="app">
@@ -344,10 +391,16 @@ function App() {
               Today's Replies
             </button>
             <button
-              className={`tab-btn${tab === 'overview' ? ' active' : ''}`}
-              onClick={() => setTab('overview')}
+              className={`tab-btn${tab === 'analytics' ? ' active' : ''}`}
+              onClick={() => setTab('analytics')}
             >
-              Overview
+              Analytics
+            </button>
+            <button
+              className={`tab-btn${tab === 'suggestions' ? ' active' : ''}`}
+              onClick={() => setTab('suggestions')}
+            >
+              Suggestions
             </button>
           </div>
 
@@ -379,7 +432,7 @@ function App() {
             </section>
           )}
 
-          {tab === 'overview' && (
+          {tab === 'analytics' && (
             <section>
               <div className="date-filter">
                 <label>
@@ -400,6 +453,100 @@ function App() {
                 </label>
               </div>
               <LineChart data={dailyCounts} maxCount={maxCount} />
+
+              <div className="analytics-stats">
+                <div className="stat-card">
+                  <span className="stat-value">{avgPerDay}</span>
+                  <span className="stat-label">Avg/Day</span>
+                </div>
+                <div className="stat-card">
+                  <span className="stat-value">{uniqueAccounts}</span>
+                  <span className="stat-label">Unique Accounts</span>
+                </div>
+                <div className="stat-card">
+                  <span className="stat-value">{peakHour}</span>
+                  <span className="stat-label">Peak Hour</span>
+                </div>
+              </div>
+
+              {stats.leaderboard && stats.leaderboard.length > 0 && (
+                <div className="leaderboard">
+                  <h3 className="leaderboard-title">Top Accounts</h3>
+                  <ul className="recent-replies">
+                    {stats.leaderboard.slice(0, 5).map((entry, i) => (
+                      <li key={entry.username} className="leaderboard-item">
+                        <span className="leaderboard-rank">#{i + 1}</span>
+                        <div className="leaderboard-info">
+                          <span className="account-name">{entry.displayName}</span>
+                          <span className="account-handle">@{entry.username}</span>
+                        </div>
+                        <span className="leaderboard-count">{entry.count} replies</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </section>
+          )}
+
+          {tab === 'suggestions' && (
+            <section>
+              {!interestProfile ? (
+                <div className="calibration-progress">
+                  <p className="calibration-title">Learning your patterns...</p>
+                  <div className="progress-bar-track">
+                    <div
+                      className="progress-bar-fill"
+                      style={{ width: `${Math.min((allReplies.length / CALIBRATION_THRESHOLD) * 100, 100)}%` }}
+                    />
+                  </div>
+                  <p className="calibration-count">
+                    {allReplies.length} / {CALIBRATION_THRESHOLD} replies collected
+                  </p>
+                  <p className="empty">
+                    Keep replying! Riposte needs {Math.max(CALIBRATION_THRESHOLD - allReplies.length, 0)} more replies to start suggesting tweets that match your interests.
+                  </p>
+                </div>
+              ) : suggestions.length === 0 ? (
+                <div className="suggestions-empty">
+                  <p className="empty">No matching tweets found in your current feed. Keep scrolling — suggestions will appear as you browse.</p>
+                  <p className="calibration-count" style={{ marginTop: '12px' }}>
+                    Profile built from {interestProfile.replyCount} replies
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <p className="calibration-count" style={{ marginBottom: '8px' }}>
+                    {suggestions.length} tweet{suggestions.length !== 1 ? 's' : ''} matching your interests
+                  </p>
+                  <ul className="recent-replies">
+                    {suggestions.map((s, i) => (
+                      <li key={`${s.tweetUrl}-${i}`} className={`suggestion-item${s.hasReplied ? ' suggestion-replied' : ''}`}>
+                        <div className="suggestion-header">
+                          <a
+                            href={s.tweetUrl}
+                            onClick={(e) => {
+                              e.preventDefault()
+                              window.parent.postMessage(
+                                { type: '__riposte_navigate__', url: s.tweetUrl },
+                                '*'
+                              )
+                            }}
+                          >
+                            <span className="account-name">{s.authorDisplayName}</span>
+                            <span className="account-handle">@{s.authorUsername}</span>
+                          </a>
+                          <span className={`suggestion-status ${s.hasReplied ? 'status-replied' : 'status-match'}`}>
+                            {s.hasReplied ? 'Replied' : 'Reply match'}
+                          </span>
+                        </div>
+                        <p className="suggestion-text">{s.tweetText}</p>
+                        <span className="suggestion-reason">{s.matchReason}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
             </section>
           )}
         </>

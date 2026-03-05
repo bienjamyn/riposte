@@ -16,6 +16,25 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true
   }
 
+  if (message.type === 'GET_INTEREST_PROFILE') {
+    getInterestProfile().then((profile) => sendResponse(profile))
+    return true
+  }
+
+  if (message.type === 'REPORT_SUGGESTIONS') {
+    // Content script reports matching tweets found in the feed
+    chrome.storage.local.set({ feedSuggestions: message.data })
+    sendResponse({ ok: true })
+    return true
+  }
+
+  if (message.type === 'GET_SUGGESTIONS') {
+    chrome.storage.local.get('feedSuggestions').then(({ feedSuggestions }) => {
+      sendResponse(feedSuggestions || [])
+    })
+    return true
+  }
+
 })
 
 // Disable action by default — only enable on x.com tabs
@@ -73,6 +92,8 @@ interface ReplyRecord {
   repliedToUsername: string
   repliedToDisplayName: string
   repliedToTweetUrl: string
+  replyText?: string
+  originalTweetText?: string
   timestamp: number
 }
 
@@ -101,6 +122,11 @@ async function handleReplyDetected(data: Omit<ReplyRecord, 'id'>) {
   chrome.action.setBadgeBackgroundColor({ color: '#00C853' })
 
   console.log('[Riposte] Reply saved:', record)
+
+  // Rebuild interest profile once we have enough data
+  if (replies.length >= CALIBRATION_THRESHOLD) {
+    await buildInterestProfile(replies as ReplyRecord[])
+  }
 }
 
 async function getStats() {
@@ -177,6 +203,89 @@ function calculateStreak(replies: ReplyRecord[]): number {
 async function getReplies(): Promise<ReplyRecord[]> {
   const { replies = [] } = await chrome.storage.local.get('replies')
   return (replies as ReplyRecord[]).sort((a, b) => b.timestamp - a.timestamp)
+}
+
+// --- Interest Profile Engine ---
+
+const CALIBRATION_THRESHOLD = 20
+
+const STOP_WORDS = new Set([
+  'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
+  'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
+  'should', 'may', 'might', 'can', 'shall', 'to', 'of', 'in', 'for',
+  'on', 'with', 'at', 'by', 'from', 'as', 'into', 'through', 'during',
+  'before', 'after', 'above', 'below', 'between', 'out', 'off', 'over',
+  'under', 'again', 'further', 'then', 'once', 'and', 'but', 'or', 'nor',
+  'not', 'so', 'yet', 'both', 'either', 'neither', 'each', 'every', 'all',
+  'any', 'few', 'more', 'most', 'other', 'some', 'such', 'no', 'only',
+  'own', 'same', 'than', 'too', 'very', 'just', 'because', 'if', 'when',
+  'where', 'how', 'what', 'which', 'who', 'whom', 'this', 'that', 'these',
+  'those', 'i', 'me', 'my', 'we', 'our', 'you', 'your', 'he', 'him',
+  'his', 'she', 'her', 'it', 'its', 'they', 'them', 'their', 'up', 'about',
+  'also', 'like', 'get', 'got', 'go', 'going', 'know', 'think', 'make',
+  'really', 'right', 'even', 'well', 'back', 'now', 'here', 'there',
+  'much', 'many', 'still', 'already', 'way', 'thing', 'things', 'dont',
+  "don't", 'im', "i'm", 'thats', "that's", 'its', "it's", 'http', 'https',
+])
+
+interface InterestProfile {
+  topAccounts: { username: string; score: number }[]
+  topKeywords: { word: string; score: number }[]
+  calibratedAt: number
+  replyCount: number
+}
+
+function tokenize(text: string): string[] {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s@#]/g, ' ')
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !STOP_WORDS.has(w))
+}
+
+async function buildInterestProfile(replies: ReplyRecord[]): Promise<InterestProfile> {
+  // Account frequency scoring
+  const accountCounts: Record<string, number> = {}
+  for (const r of replies) {
+    accountCounts[r.repliedToUsername] = (accountCounts[r.repliedToUsername] || 0) + 1
+  }
+  const maxAccountCount = Math.max(...Object.values(accountCounts), 1)
+  const topAccounts = Object.entries(accountCounts)
+    .map(([username, count]) => ({ username, score: count / maxAccountCount }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 20)
+
+  // Keyword frequency scoring from reply text + original tweet text
+  const wordCounts: Record<string, number> = {}
+  for (const r of replies) {
+    const text = `${r.replyText || ''} ${r.originalTweetText || ''}`
+    const words = tokenize(text)
+    for (const w of words) {
+      wordCounts[w] = (wordCounts[w] || 0) + 1
+    }
+  }
+  const maxWordCount = Math.max(...Object.values(wordCounts), 1)
+  const topKeywords = Object.entries(wordCounts)
+    .filter(([, count]) => count >= 2) // only words that appear at least twice
+    .map(([word, count]) => ({ word, score: count / maxWordCount }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 50)
+
+  const profile: InterestProfile = {
+    topAccounts,
+    topKeywords,
+    calibratedAt: Date.now(),
+    replyCount: replies.length,
+  }
+
+  await chrome.storage.local.set({ interestProfile: profile })
+  console.log('[Riposte] Interest profile updated:', profile.topAccounts.length, 'accounts,', profile.topKeywords.length, 'keywords')
+  return profile
+}
+
+async function getInterestProfile(): Promise<InterestProfile | null> {
+  const { interestProfile } = await chrome.storage.local.get('interestProfile')
+  return interestProfile || null
 }
 
 console.log('[Riposte] Service worker loaded')

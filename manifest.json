@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Riposte",
   "description": "Track your reply game on X. Analytics, streaks, and AI-powered reply suggestions.",
-  "version": "0.1.1",
+  "version": "0.1.3",
   "icons": {
     "16": "public/icons/icon16.png",
     "32": "public/icons/icon32.png",
@@ -38,7 +38,7 @@
     }
   },
   "web_accessible_resources": [{
-    "resources": ["src/sidebar/index.html", "public/icons/icon128.png"],
+    "resources": ["src/sidebar/index.html", "public/icons/icon128.png", "public/icons/riposte-logo.png"],
     "matches": ["*://x.com/*"]
   }]
 }

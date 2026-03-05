@@ -48,6 +48,7 @@ window.fetch = async function (...args: Parameters<typeof fetch>) {
 
         if (replyTweetId) {
           const data = extractReplyContext()
+          const replyText = body?.variables?.tweet_text || ''
           console.log('[Riposte DEBUG] Reply context:', data)
 
           // Use postMessage instead of CustomEvent — data crosses world boundary via structured clone
@@ -56,6 +57,8 @@ window.fetch = async function (...args: Parameters<typeof fetch>) {
             repliedToUsername: data.username,
             repliedToDisplayName: data.displayName,
             repliedToTweetUrl: data.tweetUrl,
+            replyText,
+            originalTweetText: data.originalTweetText,
             timestamp: Date.now(),
           }, '*')
         }
@@ -98,11 +101,14 @@ XMLHttpRequest.prototype.send = function (body?: Document | XMLHttpRequestBodyIn
       const replyTweetId = parsed?.variables?.reply?.in_reply_to_tweet_id
       if (replyTweetId) {
         const data = extractReplyContext()
+        const replyText = parsed?.variables?.tweet_text || ''
         window.postMessage({
           type: '__riposte_reply__',
           repliedToUsername: data.username,
           repliedToDisplayName: data.displayName,
           repliedToTweetUrl: data.tweetUrl,
+          replyText,
+          originalTweetText: data.originalTweetText,
           timestamp: Date.now(),
         }, '*')
       }
@@ -112,9 +118,29 @@ XMLHttpRequest.prototype.send = function (body?: Document | XMLHttpRequestBodyIn
   return originalXHRSend.apply(this, [body])
 }
 
+function extractOriginalTweetText(): string {
+  // Try to get the original tweet text from the tweet being replied to
+  // In a reply dialog, the original tweet is shown above the reply box
+  const dialog = document.querySelector('[role="dialog"]')
+  if (dialog) {
+    const tweetTexts = dialog.querySelectorAll('[data-testid="tweetText"]')
+    // First tweetText in the dialog is the original tweet
+    if (tweetTexts.length > 0) {
+      return tweetTexts[0].textContent || ''
+    }
+  }
+  // On a tweet's page, the main tweet text
+  const mainTweet = document.querySelector('article [data-testid="tweetText"]')
+  if (mainTweet) {
+    return mainTweet.textContent || ''
+  }
+  return ''
+}
+
 function extractReplyContext() {
   const pageUrl = window.location.href
   const match = pageUrl.match(/x\.com\/([^/]+)\/status\/(\d+)/)
+  const originalTweetText = extractOriginalTweetText()
 
   if (match) {
     const username = match[1]
@@ -125,6 +151,7 @@ function extractReplyContext() {
       username,
       displayName: el?.textContent || username,
       tweetUrl: `https://x.com/${username}/status/${match[2]}`,
+      originalTweetText,
     }
   }
 
@@ -140,12 +167,13 @@ function extractReplyContext() {
           username: u,
           displayName: link.textContent || u,
           tweetUrl: pageUrl,
+          originalTweetText,
         }
       }
     }
   }
 
-  return { username: 'unknown', displayName: 'Unknown', tweetUrl: pageUrl }
+  return { username: 'unknown', displayName: 'Unknown', tweetUrl: pageUrl, originalTweetText }
 }
 
 console.log('[Riposte] Page intercept loaded — fetch & XHR patched')

@@ -5,6 +5,28 @@ All notable changes to Riposte will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.3] - 2026-03-04
+
+### Added
+
+- Interest profile engine — analyses your reply history to learn which accounts and topics you engage with most
+- Feed scanner — highlights tweets in your feed that match your interest profile with a "Reply match" badge
+- Suggestions tab in the sidebar — shows matching tweets from your feed, clickable to navigate directly
+- Analytics tab — avg replies/day, unique accounts replied to, peak reply hour, and top accounts leaderboard
+- Calibration progress UI — shows how many more replies are needed before suggestions activate (20 replies)
+- Reply text and original tweet text are now captured for smarter interest profiling
+- Sidebar persists across page navigations within x.com (sessionStorage)
+- In-page SPA navigation when clicking suggestions (no full reload)
+
+### Fixed
+
+- Own tweets and comments no longer appear in suggestions — logged-in user detection now uses a persistent MutationObserver instead of a single retry, and rescans all articles once detected
+
+### Changed
+
+- "Overview" tab renamed to "Analytics" with richer stats
+- Floating button now uses the Riposte logo
+
 ## [0.1.1] - 2026-03-03
 
 ### Added
