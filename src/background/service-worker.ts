@@ -210,6 +210,7 @@ async function getReplies(): Promise<ReplyRecord[]> {
 const CALIBRATION_THRESHOLD = 20
 
 const STOP_WORDS = new Set([
+  // Articles, prepositions, conjunctions
   'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
   'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
   'should', 'may', 'might', 'can', 'shall', 'to', 'of', 'in', 'for',
@@ -222,17 +223,35 @@ const STOP_WORDS = new Set([
   'where', 'how', 'what', 'which', 'who', 'whom', 'this', 'that', 'these',
   'those', 'i', 'me', 'my', 'we', 'our', 'you', 'your', 'he', 'him',
   'his', 'she', 'her', 'it', 'its', 'they', 'them', 'their', 'up', 'about',
+  // Common verbs and adverbs
   'also', 'like', 'get', 'got', 'go', 'going', 'know', 'think', 'make',
   'really', 'right', 'even', 'well', 'back', 'now', 'here', 'there',
   'much', 'many', 'still', 'already', 'way', 'thing', 'things', 'dont',
   "don't", 'im', "i'm", 'thats', "that's", 'its', "it's", 'http', 'https',
+  // Common conversational words (not topically meaningful)
+  'say', 'said', 'want', 'need', 'feel', 'look', 'come', 'take', 'give',
+  'keep', 'let', 'put', 'tell', 'show', 'try', 'call', 'run', 'use',
+  'turn', 'move', 'play', 'start', 'end', 'help', 'talk', 'point',
+  'good', 'bad', 'new', 'old', 'big', 'long', 'high', 'great', 'best',
+  'hard', 'real', 'last', 'first', 'next', 'sure', 'mean', 'live',
+  'day', 'time', 'work', 'life', 'part', 'people', 'man', 'world',
+  'sleep', 'stop', 'wait', 'read', 'left', 'hear', 'seen', 'done',
+  // Social media filler
+  'post', 'tweet', 'lol', 'lmao', 'yeah', 'nah', 'okay', 'yes',
+  'literally', 'basically', 'actually', 'definitely', 'probably',
+  // Pronouns and quantifiers
+  'someone', 'something', 'everyone', 'everything', 'nothing', 'anything',
+  'always', 'never', 'maybe', 'kind', 'lot', 'bit', 'stuff', 'whole',
 ])
+
+const PROFILE_VERSION = 2
 
 interface InterestProfile {
   topAccounts: { username: string; score: number }[]
   topKeywords: { word: string; score: number }[]
   calibratedAt: number
   replyCount: number
+  profileVersion?: number
 }
 
 function tokenize(text: string): string[] {
@@ -255,10 +274,10 @@ async function buildInterestProfile(replies: ReplyRecord[]): Promise<InterestPro
     .sort((a, b) => b.score - a.score)
     .slice(0, 20)
 
-  // Keyword frequency scoring from reply text + original tweet text
+  // Keyword frequency scoring from the user's own reply text only
   const wordCounts: Record<string, number> = {}
   for (const r of replies) {
-    const text = `${r.replyText || ''} ${r.originalTweetText || ''}`
+    const text = r.replyText || ''
     const words = tokenize(text)
     for (const w of words) {
       wordCounts[w] = (wordCounts[w] || 0) + 1
@@ -266,16 +285,17 @@ async function buildInterestProfile(replies: ReplyRecord[]): Promise<InterestPro
   }
   const maxWordCount = Math.max(...Object.values(wordCounts), 1)
   const topKeywords = Object.entries(wordCounts)
-    .filter(([, count]) => count >= 2) // only words that appear at least twice
+    .filter(([, count]) => count >= 3) // only words that appear at least 3 times
     .map(([word, count]) => ({ word, score: count / maxWordCount }))
     .sort((a, b) => b.score - a.score)
-    .slice(0, 50)
+    .slice(0, 30)
 
   const profile: InterestProfile = {
     topAccounts,
     topKeywords,
     calibratedAt: Date.now(),
     replyCount: replies.length,
+    profileVersion: PROFILE_VERSION,
   }
 
   await chrome.storage.local.set({ interestProfile: profile })
@@ -284,7 +304,11 @@ async function buildInterestProfile(replies: ReplyRecord[]): Promise<InterestPro
 }
 
 async function getInterestProfile(): Promise<InterestProfile | null> {
-  const { interestProfile } = await chrome.storage.local.get('interestProfile')
+  const { interestProfile, replies = [] } = await chrome.storage.local.get(['interestProfile', 'replies'])
+  // Rebuild if profile is outdated or missing version
+  if (interestProfile && interestProfile.profileVersion !== PROFILE_VERSION && (replies as ReplyRecord[]).length >= CALIBRATION_THRESHOLD) {
+    return buildInterestProfile(replies as ReplyRecord[])
+  }
   return interestProfile || null
 }
 

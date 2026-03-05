@@ -336,7 +336,7 @@ function scanTweet(article: Element) {
   // Score the tweet
   const { score, reason } = scoreTweet(authorUsername, tweetText, cachedProfile)
 
-  if (score >= 0.15) {
+  if (score >= 0.25) {
     const hasReplied = repliedTweetUrls.has(tweetUrl)
 
     // Inject badge near the tweet's action bar
