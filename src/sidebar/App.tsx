@@ -529,7 +529,7 @@ function App() {
                               e.preventDefault()
                               window.parent.postMessage(
                                 { type: '__riposte_navigate__', url: s.tweetUrl },
-                                '*'
+                                'https://x.com'
                               )
                             }}
                           >

@@ -21,6 +21,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Fixed
 
 - Own tweets and comments no longer appear in suggestions — logged-in user detection now uses a persistent MutationObserver instead of a single retry, and rescans all articles once detected
+- Suggestion matching accuracy — expanded stop words, raised keyword min occurrence to 3, reduced keyword cap to 30, only index user's own reply text, raised score threshold to 0.25
+
+### Security
+
+- Added origin validation on all `postMessage` calls and listeners — no more wildcard `'*'` targets
+- Added sender validation in service worker — rejects messages from non-extension, non-x.com sources
+- Added input validation on reply data — username format, URL hostname, timestamp sanity, text length limits
+- Added Content Security Policy to manifest (`default-src 'self'; object-src 'none'`)
+- Used `CSS.escape()` for DOM selectors built with user input
+- Added storage change data validation before use
+- Navigation URL now validated with `URL` object hostname check instead of `startsWith` string check
 
 ### Changed
 

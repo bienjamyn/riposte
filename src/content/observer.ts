@@ -4,22 +4,28 @@
 
 // Navigate the X page when a suggestion is clicked in the sidebar iframe
 window.addEventListener('message', (event) => {
+  // Accept from same origin (page scripts) or chrome-extension:// (sidebar iframe)
+  if (event.origin !== location.origin && !event.origin.startsWith('chrome-extension://')) return
   if (event.data?.type !== '__riposte_navigate__') return
   const url = event.data.url
-  if (typeof url === 'string' && url.startsWith('https://x.com/')) {
-    // Use a temporary <a> click so X's SPA router handles it (preserves DOM/sidebar)
-    const a = document.createElement('a')
-    a.href = url
-    a.style.display = 'none'
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
-  }
+  if (typeof url !== 'string') return
+  try {
+    const u = new URL(url)
+    if (u.hostname !== 'x.com') return
+  } catch { return }
+  // Use a temporary <a> click so X's SPA router handles it (preserves DOM/sidebar)
+  const a = document.createElement('a')
+  a.href = url
+  a.style.display = 'none'
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
 })
 
 window.addEventListener('message', (event) => {
-  // Only accept messages from the same window (our page-intercept script)
+  // Only accept messages from our page-intercept script (same window, same origin)
   if (event.source !== window) return
+  if (event.origin !== location.origin) return
   if (event.data?.type !== '__riposte_reply__') return
 
   const data = {
@@ -421,9 +427,12 @@ async function startFeedScanner() {
   // Listen for profile and reply updates — re-scan visible tweets when data changes
   chrome.storage.onChanged.addListener((changes) => {
     if (changes.interestProfile?.newValue) {
-      cachedProfile = changes.interestProfile.newValue
-      console.log('[Riposte] Interest profile updated in content script')
-      rescanAllArticles()
+      const p = changes.interestProfile.newValue
+      if (p && Array.isArray(p.topAccounts) && Array.isArray(p.topKeywords)) {
+        cachedProfile = p
+        console.log('[Riposte] Interest profile updated in content script')
+        rescanAllArticles()
+      }
     }
     if (changes.replies) {
       loadRepliedUrls().then(() => rescanAllArticles())

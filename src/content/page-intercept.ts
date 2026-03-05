@@ -2,6 +2,12 @@
 // This script has access to the page's real window.fetch
 // Uses window.postMessage to communicate with the isolated-world content script
 
+const MAX_TEXT_LENGTH = 500
+
+function isValidXUsername(username: string): boolean {
+  return /^[a-zA-Z0-9_]{1,15}$/.test(username)
+}
+
 const originalFetch = window.fetch
 
 window.fetch = async function (...args: Parameters<typeof fetch>) {
@@ -48,19 +54,18 @@ window.fetch = async function (...args: Parameters<typeof fetch>) {
 
         if (replyTweetId) {
           const data = extractReplyContext()
-          const replyText = body?.variables?.tweet_text || ''
+          const replyText = (body?.variables?.tweet_text || '').slice(0, MAX_TEXT_LENGTH)
           console.log('[Riposte DEBUG] Reply context:', data)
 
-          // Use postMessage instead of CustomEvent — data crosses world boundary via structured clone
           window.postMessage({
             type: '__riposte_reply__',
             repliedToUsername: data.username,
             repliedToDisplayName: data.displayName,
             repliedToTweetUrl: data.tweetUrl,
             replyText,
-            originalTweetText: data.originalTweetText,
+            originalTweetText: data.originalTweetText.slice(0, MAX_TEXT_LENGTH),
             timestamp: Date.now(),
-          }, '*')
+          }, window.location.origin)
         }
       }
     } catch (e) {
@@ -101,16 +106,16 @@ XMLHttpRequest.prototype.send = function (body?: Document | XMLHttpRequestBodyIn
       const replyTweetId = parsed?.variables?.reply?.in_reply_to_tweet_id
       if (replyTweetId) {
         const data = extractReplyContext()
-        const replyText = parsed?.variables?.tweet_text || ''
+        const replyText = (parsed?.variables?.tweet_text || '').slice(0, MAX_TEXT_LENGTH)
         window.postMessage({
           type: '__riposte_reply__',
           repliedToUsername: data.username,
           repliedToDisplayName: data.displayName,
           repliedToTweetUrl: data.tweetUrl,
           replyText,
-          originalTweetText: data.originalTweetText,
+          originalTweetText: data.originalTweetText.slice(0, MAX_TEXT_LENGTH),
           timestamp: Date.now(),
-        }, '*')
+        }, window.location.origin)
       }
     } catch { /* ignore */ }
   }
@@ -144,14 +149,17 @@ function extractReplyContext() {
 
   if (match) {
     const username = match[1]
-    const el = document.querySelector(
-      `[data-testid="User-Name"] a[href="/${username}"] span`
-    )
-    return {
-      username,
-      displayName: el?.textContent || username,
-      tweetUrl: `https://x.com/${username}/status/${match[2]}`,
-      originalTweetText,
+    if (isValidXUsername(username)) {
+      const escaped = CSS.escape(username)
+      const el = document.querySelector(
+        `[data-testid="User-Name"] a[href="/${escaped}"] span`
+      )
+      return {
+        username,
+        displayName: el?.textContent || username,
+        tweetUrl: `https://x.com/${username}/status/${match[2]}`,
+        originalTweetText,
+      }
     }
   }
 

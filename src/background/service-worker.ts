@@ -1,8 +1,44 @@
 // Riposte Service Worker — handles storage and badge updates
 
+function isValidSender(sender: chrome.runtime.MessageSender): boolean {
+  if (sender.id === chrome.runtime.id) return true
+  const url = sender.url || ''
+  try { return new URL(url).hostname === 'x.com' } catch { return false }
+}
+
+function validateReplyData(data: Record<string, unknown>): Omit<ReplyRecord, 'id'> {
+  const username = String(data.repliedToUsername || '').slice(0, 15)
+  if (!/^[a-zA-Z0-9_]{1,15}$/.test(username)) throw new Error('Invalid username')
+
+  const tweetUrl = String(data.repliedToTweetUrl || '')
+  try {
+    if (tweetUrl && new URL(tweetUrl).hostname !== 'x.com') throw new Error('Invalid URL')
+  } catch { throw new Error('Invalid tweet URL') }
+
+  const timestamp = Number(data.timestamp)
+  if (!Number.isFinite(timestamp) || timestamp > Date.now() + 60000) throw new Error('Invalid timestamp')
+
+  return {
+    repliedToUsername: username,
+    repliedToDisplayName: String(data.repliedToDisplayName || username).slice(0, 50),
+    repliedToTweetUrl: tweetUrl.slice(0, 200),
+    replyText: String(data.replyText || '').slice(0, 500),
+    originalTweetText: String(data.originalTweetText || '').slice(0, 500),
+    timestamp,
+  }
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (!isValidSender(sender)) return
+
   if (message.type === 'REPLY_DETECTED') {
-    handleReplyDetected(message.data).then(() => sendResponse({ ok: true }))
+    try {
+      const validated = validateReplyData(message.data || {})
+      handleReplyDetected(validated).then(() => sendResponse({ ok: true }))
+    } catch (e) {
+      console.error('[Riposte] Invalid reply data:', e)
+      sendResponse({ ok: false })
+    }
     return true // keep channel open for async response
   }
 
