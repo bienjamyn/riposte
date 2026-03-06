@@ -71,6 +71,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true
   }
 
+  if (message.type === 'FULL_RESET_PROFILE') {
+    chrome.storage.local.remove(['interestProfile', 'feedSuggestions']).then(() => {
+      sendResponse({ ok: true })
+    })
+    return true
+  }
+
+  if (message.type === 'RESET_SUGGESTIONS') {
+    // Clear storage first so sidebar sees the change, then tell content scripts to rescan
+    chrome.storage.local.set({ feedSuggestions: [] }).then(() => {
+      chrome.tabs.query({ url: '*://x.com/*' }, (tabs) => {
+        for (const tab of tabs) {
+          if (tab.id) chrome.tabs.sendMessage(tab.id, { type: 'RESCAN_FEED' }).catch(() => {})
+        }
+      })
+    })
+    sendResponse({ ok: true })
+    return true
+  }
+
 })
 
 // Disable action by default — only enable on x.com tabs
@@ -243,7 +263,7 @@ async function getReplies(): Promise<ReplyRecord[]> {
 
 // --- Interest Profile Engine ---
 
-const CALIBRATION_THRESHOLD = 20
+const CALIBRATION_THRESHOLD = 50
 
 const STOP_WORDS = new Set([
   // Articles, prepositions, conjunctions
@@ -280,7 +300,7 @@ const STOP_WORDS = new Set([
   'always', 'never', 'maybe', 'kind', 'lot', 'bit', 'stuff', 'whole',
 ])
 
-const PROFILE_VERSION = 2
+const PROFILE_VERSION = 3
 
 interface InterestProfile {
   topAccounts: { username: string; score: number }[]
@@ -295,7 +315,7 @@ function tokenize(text: string): string[] {
     .toLowerCase()
     .replace(/[^a-z0-9\s@#]/g, ' ')
     .split(/\s+/)
-    .filter((w) => w.length > 2 && !STOP_WORDS.has(w))
+    .filter((w) => w.length > 3 && !STOP_WORDS.has(w))
 }
 
 async function buildInterestProfile(replies: ReplyRecord[]): Promise<InterestProfile> {
@@ -321,7 +341,7 @@ async function buildInterestProfile(replies: ReplyRecord[]): Promise<InterestPro
   }
   const maxWordCount = Math.max(...Object.values(wordCounts), 1)
   const topKeywords = Object.entries(wordCounts)
-    .filter(([, count]) => count >= 3) // only words that appear at least 3 times
+    .filter(([, count]) => count >= 5) // only words that appear at least 3 times
     .map(([word, count]) => ({ word, score: count / maxWordCount }))
     .sort((a, b) => b.score - a.score)
     .slice(0, 30)

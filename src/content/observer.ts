@@ -221,13 +221,14 @@ function detectLoggedInUser(): string | null {
 }
 const processedTweets = new WeakSet<Element>()
 const currentSuggestions: FeedSuggestion[] = []
+let lastFeedUrl = location.href
 
 function tokenizeForScoring(text: string): string[] {
   return text
     .toLowerCase()
     .replace(/[^a-z0-9\s@#]/g, ' ')
     .split(/\s+/)
-    .filter((w) => w.length > 2)
+    .filter((w) => w.length > 3)
 }
 
 function scoreTweet(
@@ -315,7 +316,11 @@ function scanTweet(article: Element) {
   const isReply = !!Array.from(article.querySelectorAll('span')).find(
     (el) => el.textContent?.trim() === 'Replying to'
   )
-  if (isReply) return
+  // Detect inline thread replies via the thread connector line above the avatar
+  const avatarCol = article.querySelector('[data-testid="Tweet-User-Avatar"]')?.parentElement
+  const hasThreadConnector = avatarCol?.previousElementSibling
+    && (avatarCol.previousElementSibling as HTMLElement).offsetHeight > 0
+  if (isReply || hasThreadConnector) return
 
   // Extract author username from the article
   const userLink = article.querySelector('a[href^="/"][role="link"]')
@@ -338,6 +343,13 @@ function scanTweet(article: Element) {
   // Extract tweet URL (needed for replied check and suggestions)
   const timeLink = article.querySelector('a[href*="/status/"] time')?.parentElement
   const tweetUrl = timeLink ? `https://x.com${timeLink.getAttribute('href')}` : ''
+
+  // Skip replies in thread view — only suggest the main post
+  const pageStatusMatch = location.pathname.match(/\/status\/(\d+)/)
+  if (pageStatusMatch && tweetUrl) {
+    const pageTweetId = pageStatusMatch[1]
+    if (!tweetUrl.includes(`/status/${pageTweetId}`)) return
+  }
 
   // Score the tweet
   const { score, reason } = scoreTweet(authorUsername, tweetText, cachedProfile)
@@ -439,8 +451,27 @@ async function startFeedScanner() {
     }
   })
 
+  // Listen for rescan requests from service worker (triggered by sidebar refresh button)
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message.type === 'RESCAN_FEED') {
+      currentSuggestions.length = 0
+      rescanAllArticles()
+      try {
+        chrome.runtime.sendMessage({ type: 'REPORT_SUGGESTIONS', data: currentSuggestions })
+      } catch { /* extension context invalidated */ }
+    }
+  })
+
   // Observe the feed for new tweets
   const observer = new MutationObserver((mutations) => {
+    // Detect SPA navigation (URL change) and clear stale suggestions
+    if (location.href !== lastFeedUrl) {
+      lastFeedUrl = location.href
+      currentSuggestions.length = 0
+      try {
+        chrome.runtime.sendMessage({ type: 'REPORT_SUGGESTIONS', data: [] })
+      } catch { /* extension context invalidated */ }
+    }
     for (const mutation of mutations) {
       for (const node of mutation.addedNodes) {
         if (node instanceof HTMLElement) {

@@ -5,6 +5,22 @@ All notable changes to Riposte will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.4] - 2026-03-05
+
+### Added
+
+- "Reset Suggestions" button with confirmation dialog — clears interest profile and suggestions to restart calibration
+- Daily/weekly target display below progress bar ("Daily target: 10 · Weekly target: 70")
+
+### Changed
+
+- Tab order reordered to Suggestions → Today's Replies → Analytics (Suggestions is now the default tab)
+
+### Fixed
+
+- Goal input now saves correctly when typing via keyboard (previously only worked with arrow buttons)
+- Goal scope buttons ("Just Today" / "For the Week") now show black text on green hover for readability
+
 ## [0.1.3] - 2026-03-04
 
 ### Added

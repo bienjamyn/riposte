@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 interface Stats {
   total: number
@@ -34,7 +34,7 @@ interface InterestProfile {
 }
 
 const DEFAULT_GOAL = 10
-const CALIBRATION_THRESHOLD = 20
+const CALIBRATION_THRESHOLD = 50
 
 function getTodayString(): string {
   const d = new Date()
@@ -214,9 +214,11 @@ function App() {
   const [dailyGoal, setDailyGoal] = useState(DEFAULT_GOAL)
   const [isEditingGoal, setIsEditingGoal] = useState(false)
   const [goalInput, setGoalInput] = useState('')
-  const [tab, setTab] = useState<'replies' | 'analytics' | 'suggestions'>('replies')
+  const goalInputRef = useRef<HTMLInputElement>(null)
+  const [tab, setTab] = useState<'replies' | 'analytics' | 'suggestions'>('suggestions')
   const [suggestions, setSuggestions] = useState<FeedSuggestion[]>([])
   const [interestProfile, setInterestProfile] = useState<InterestProfile | null>(null)
+  const [showResetConfirm, setShowResetConfirm] = useState(false)
   const [dateFrom, setDateFrom] = useState(() => {
     const d = new Date()
     d.setDate(d.getDate() - 7)
@@ -238,7 +240,8 @@ function App() {
   }
 
   const saveGoal = (scope: 'today' | 'week') => {
-    const value = Math.max(1, parseInt(goalInput) || DEFAULT_GOAL)
+    const rawValue = goalInputRef.current?.value ?? goalInput
+    const value = Math.max(1, parseInt(rawValue) || DEFAULT_GOAL)
     if (scope === 'today') {
       chrome.storage.local.set({ dailyGoalToday: { value, date: getTodayString() } })
     } else {
@@ -332,10 +335,14 @@ function App() {
               {stats.today} / {dailyGoal} replies today
               {isFull && ' — Goal reached!'}
             </p>
+            <p className="target-label">
+              Daily target: {dailyGoal} · Weekly target: {dailyGoal * 7}
+            </p>
             <div className="goal-row">
               {isEditingGoal ? (
                 <>
                   <input
+                    ref={goalInputRef}
                     className="goal-input"
                     type="number"
                     min="1"
@@ -385,6 +392,12 @@ function App() {
 
           <div className="tab-bar">
             <button
+              className={`tab-btn${tab === 'suggestions' ? ' active' : ''}`}
+              onClick={() => setTab('suggestions')}
+            >
+              Suggestions
+            </button>
+            <button
               className={`tab-btn${tab === 'replies' ? ' active' : ''}`}
               onClick={() => setTab('replies')}
             >
@@ -395,12 +408,6 @@ function App() {
               onClick={() => setTab('analytics')}
             >
               Analytics
-            </button>
-            <button
-              className={`tab-btn${tab === 'suggestions' ? ' active' : ''}`}
-              onClick={() => setTab('suggestions')}
-            >
-              Suggestions
             </button>
           </div>
 
@@ -507,18 +514,70 @@ function App() {
                     Keep replying! Riposte needs {Math.max(CALIBRATION_THRESHOLD - allReplies.length, 0)} more replies to start suggesting tweets that match your interests.
                   </p>
                 </div>
-              ) : suggestions.length === 0 ? (
-                <div className="suggestions-empty">
-                  <p className="empty">No matching tweets found in your current feed. Keep scrolling — suggestions will appear as you browse.</p>
-                  <p className="calibration-count" style={{ marginTop: '12px' }}>
-                    Profile built from {interestProfile.replyCount} replies
-                  </p>
-                </div>
               ) : (
                 <>
-                  <p className="calibration-count" style={{ marginBottom: '8px' }}>
-                    {suggestions.length} tweet{suggestions.length !== 1 ? 's' : ''} matching your interests
-                  </p>
+                  <div className="suggestions-header">
+                    <p className="calibration-count">
+                      {suggestions.length > 0
+                        ? `${suggestions.length} tweet${suggestions.length !== 1 ? 's' : ''} matching your interests`
+                        : `Profile built from ${interestProfile.replyCount} replies`}
+                    </p>
+                    <div className="suggestions-actions">
+                      <button
+                        className="refresh-suggestions-btn"
+                        disabled={suggestions.length === 0}
+                        onClick={() => {
+                          chrome.runtime.sendMessage({ type: 'RESET_SUGGESTIONS' })
+                          setSuggestions([])
+                          // Re-fetch after rescan completes
+                          setTimeout(() => {
+                            chrome.runtime.sendMessage({ type: 'GET_SUGGESTIONS' }, (response) => {
+                              if (response) setSuggestions(response)
+                            })
+                          }, 500)
+                        }}
+                      >
+                        Refresh
+                      </button>
+                      <button
+                        className="reset-suggestions-btn"
+                        onClick={() => setShowResetConfirm(true)}
+                      >
+                        Reset
+                      </button>
+                    </div>
+                  </div>
+                  {showResetConfirm && (
+                    <div className="reset-confirm-overlay">
+                      <p className="reset-confirm-text">
+                        This will reset your suggestion profile. You'll need to reply to {CALIBRATION_THRESHOLD} posts again before new suggestions appear.
+                      </p>
+                      <div className="reset-confirm-actions">
+                        <button
+                          className="reset-confirm-cancel"
+                          onClick={() => setShowResetConfirm(false)}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          className="reset-confirm-btn"
+                          onClick={() => {
+                            chrome.runtime.sendMessage({ type: 'FULL_RESET_PROFILE' })
+                            setSuggestions([])
+                            setInterestProfile(null)
+                            setShowResetConfirm(false)
+                          }}
+                        >
+                          Reset
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {suggestions.length === 0 ? (
+                    <div className="suggestions-empty">
+                      <p className="empty">No matching tweets found in your current feed. Keep scrolling and suggestions will appear as you browse.</p>
+                    </div>
+                  ) : (
                   <ul className="recent-replies">
                     {suggestions.map((s, i) => (
                       <li key={`${s.tweetUrl}-${i}`} className={`suggestion-item${s.hasReplied ? ' suggestion-replied' : ''}`}>
@@ -545,6 +604,7 @@ function App() {
                       </li>
                     ))}
                   </ul>
+                  )}
                 </>
               )}
             </section>
